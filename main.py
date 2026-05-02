@@ -1,3 +1,4 @@
+# main.py
 import asyncio
 import logging
 
@@ -16,16 +17,17 @@ dp = Dispatcher()
 
 
 class HelloPayload(CallbackPayload):
-    """Payload for the 'Hello' button. prefix is set automatically."""
+    """Payload for the 'Hello' button. prefix is set automatically from the class name."""
     pass
 
 
 class AboutPayload(CallbackPayload):
-    """Payload for the 'About' button. prefix is set automatically."""
+    """Payload for the 'About' button. prefix is set automatically from the class name."""
     pass
 
 
 def main_keyboard() -> list:
+    """Build and return the main inline keyboard."""
     builder = InlineKeyboardBuilder()
     builder.row(
         CallbackButton(text="👋 Привет", payload=HelloPayload().pack()),
@@ -38,8 +40,13 @@ def main_keyboard() -> list:
     return [builder.as_markup()]
 
 
+# ── Bot started (user presses "Start" for the first time) ────────────────────
+
 @dp.bot_started()
 async def on_bot_started(event: BotStarted):
+    # BotStarted has no answer() method, so we must use event.bot directly.
+    # assert guarantees to Pylance that bot is not None here.
+    assert event.bot is not None
     await event.bot.send_message(
         chat_id=event.chat_id,
         text="Привет! 👋\n\nОтправь /start чтобы увидеть меню.",
@@ -56,19 +63,26 @@ async def on_start(event: MessageCreated):
 
 @dp.message_callback(HelloPayload.filter())
 async def on_hello(event: MessageCallback):
-    await event.callback.answer()
-    await event.bot.send_message(
-        chat_id=event.message.recipient.chat_id,
+    # answer() lives on MessageCallback itself, not on event.callback (Callback model)
+    await event.answer()
+
+    # event.message is typed as Message | None, so we guard before using it
+    assert event.message is not None
+    await event.message.answer(
         text="Привет! 😊 Рад тебя видеть!",
         attachments=main_keyboard(),
     )
 
 
+
 @dp.message_callback(AboutPayload.filter())
 async def on_about(event: MessageCallback):
-    await event.callback.answer()
-    await event.bot.send_message(
-        chat_id=event.message.recipient.chat_id,
+    # answer() lives on MessageCallback itself, not on event.callback (Callback model)
+    await event.answer()
+
+    # event.message is typed as Message | None, so we guard before using it
+    assert event.message is not None
+    await event.message.answer(
         text=(
             "ℹ️ О боте\n\n"
             "Это минимальный демо-бот на библиотеке maxapi.\n"
@@ -80,6 +94,12 @@ async def on_about(event: MessageCallback):
 
 @dp.message_created(F.message.body.text)
 async def on_echo(event: MessageCreated):
+    # The filter F.message.body.text guarantees body and text exist at runtime,
+    # but Pylance doesn't know that — both are typed as Optional.
+    # assert tells Pylance they are safe to access here.
+    assert event.message.body is not None
+    assert event.message.body.text is not None
+
     await event.message.answer(
         text=f"Ты написал: «{event.message.body.text}»\n\nВот меню:",
         attachments=main_keyboard(),
