@@ -5,6 +5,8 @@ env/
 
 # Secrets and Config
 .env
+data/*.sqlite3
+data/*.db
 
 # Python cache
 __pycache__/

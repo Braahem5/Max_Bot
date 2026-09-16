@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 _DATA_PATH = Path(__file__).resolve().parent / "data" / "benefits.json"
@@ -25,6 +25,19 @@ class Benefit:
     source: str
     how_to_apply: str
     documents: list[str]
+    source_url: str | None = None
+    application_url: str | None = None
+    checked_at: str | None = None
+    rules: list[dict[str, str]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class BenefitCheck:
+    """Результат предварительной проверки по ответам пользователя."""
+
+    benefit: Benefit
+    status: str
+    reason: str | None = None
 
 
 def _load() -> tuple[dict[str, str], dict[str, str], list[Benefit]]:
@@ -50,4 +63,52 @@ def find_benefits(category: str, region: str) -> list[Benefit]:
         b
         for b in _BENEFITS
         if b.category == category and (b.region == "all" or b.region == region)
+    ]
+
+
+def classify_benefit(
+    benefit: Benefit,
+    answers: dict[str, str],
+) -> BenefitCheck:
+    """Классифицирует льготу без утверждения права на неё.
+
+    Правила хранятся в JSON, поэтому добавление нового условия не требует
+    изменения кода. Если у записи нет формализованных условий, она помечается
+    как кандидат и всё равно сопровождается предупреждением в интерфейсе.
+    """
+
+    for rule in benefit.rules:
+        field_name = rule["field"]
+        expected = rule["equals"]
+        value = answers.get(field_name)
+        if value is None or value == "unknown":
+            return BenefitCheck(
+                benefit=benefit,
+                status="check",
+                reason=rule.get("missing_message", "нужно уточнить условие"),
+            )
+        if value != expected:
+            return BenefitCheck(
+                benefit=benefit,
+                status="not_for_profile",
+                reason=rule.get("mismatch_message", "условие не совпало"),
+            )
+
+    return BenefitCheck(
+        benefit=benefit,
+        status="candidate",
+        reason="окончательное решение принимает ведомство",
+    )
+
+
+def check_benefits(
+    category: str,
+    region: str,
+    answers: dict[str, str],
+) -> list[BenefitCheck]:
+    """Возвращает предварительный результат подбора по категории и региону."""
+
+    return [
+        classify_benefit(benefit, answers)
+        for benefit in find_benefits(category, region)
     ]
