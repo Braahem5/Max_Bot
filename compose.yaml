@@ -1,6 +1,11 @@
 services:
   bot:
     build: .
-    env_file:
-      - .env
+    # Значения берутся из переменных окружения или из файла .env рядом с этим
+    # compose.yaml (Compose подставляет его автоматически). Если токена нет,
+    # бот запустится и сразу напишет в лог понятную ошибку, а не упадёт
+    # на этапе разбора конфигурации.
+    environment:
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_DELETE_WEBHOOK: ${MAX_DELETE_WEBHOOK:-}
     restart: unless-stopped

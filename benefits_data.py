@@ -27,15 +27,18 @@ class Benefit:
     documents: list[str]
 
 
-def _load() -> tuple[dict[str, str], dict[str, str], list[Benefit]]:
+def _load() -> tuple[dict[str, str], dict[str, str], list[Benefit], str]:
     raw = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
     categories = raw["_meta"]["categories"]
     regions = raw["_meta"]["regions"]
     benefits = [Benefit(**item) for item in raw["benefits"]]
-    return categories, regions, benefits
+    # Дата сбора данных из _meta.collected (ГГГГ-ММ-ДД), показываем её
+    # пользователю в карточке льготы в виде ДД.ММ.ГГГГ.
+    collected = ".".join(reversed(raw["_meta"]["collected"].split("-")))
+    return categories, regions, benefits, collected
 
 
-CATEGORIES, REGIONS, _BENEFITS = _load()
+CATEGORIES, REGIONS, _BENEFITS, COLLECTED_AT = _load()
 _BY_ID = {b.id: b for b in _BENEFITS}
 
 
@@ -44,8 +47,8 @@ def get_benefit(benefit_id: str) -> Benefit | None:
 
 
 def find_benefits(category: str, region: str) -> list[Benefit]:
-    """Federal (region == "all") benefits for the category, plus any
-    region-specific ones, when the user picked a real region."""
+    """Федеральные льготы категории (region == "all") плюс региональные,
+    если пользователь выбрал конкретный регион."""
     return [
         b
         for b in _BENEFITS
